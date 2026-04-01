@@ -1,0 +1,32 @@
+name: simpeg-mt-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+
+  # Core scientific stack
+  - numpy
+  - scipy
+  - matplotlib
+
+  # Discretization & inversion
+  - discretize
+  - simpeg
+
+  # Solvers
+  - pymatsolver
+  - mkl  # improves Pardiso performance
+
+  # Utilities
+  - utm
+
+  # Optional but useful
+  - jupyterlab
+  - ipython
+
+  # Metadata handling
+  - pip
+  - pip:
+      - mtpy
+      - mtpy-v2
+      - mt-metadata
