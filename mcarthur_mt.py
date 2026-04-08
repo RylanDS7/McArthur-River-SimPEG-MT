@@ -11,6 +11,7 @@ import utm
 import mtpy as mt
 from mt_metadata import TF_XML
 from pathlib import Path
+import pickle
 # Python Version
 import sys
 print(sys.version)
@@ -112,11 +113,12 @@ print('[INFO] Preprocessing MT data...')
 directory_path = Path("./data")
 mtc = mt.MTCollection()
 mtc.open_collection(Path().cwd().joinpath("test_collection100.h5"))
-geo_df = mtc.to_geo_df()
+
+station_names = mtc.dataframe.station.tolist()
 
 for file_path in directory_path.iterdir():
     station_name = file_path.stem
-    if station_name in geo_df["station"].values: # don't load duplicate data
+    if station_name in station_names: # don't load duplicate data
         continue
     if file_path.is_file():
         mt_object = mt.MT()
@@ -126,10 +128,11 @@ for file_path in directory_path.iterdir():
 
 mtc.working_dataframe = mtc.master_dataframe.loc[mtc.master_dataframe.survey == "grid"]
 
-# station_plot = mtc.plot_stations(pad=0.0005)
-
+print("Converting to mtData")
 mtd = mtc.to_mt_data()
 mtc.close_collection()
+
+# station_plot = mtc.plot_stations(pad=0.0005)
 
 # collect the data into a nice list and convert the data and locations
 _impUnitEDI2SI = 4 * np.pi * 1e-4
@@ -140,7 +143,7 @@ elevation = []
 elevation_tipper = []
 
 for key in mtd.keys():
-    print(mtd[key].has_tipper(), key)
+    # print(mtd[key].has_tipper(), key)
     rx_locs += [utm.from_latlon(mtd[key].latitude, mtd[key].longitude)[:2]]
     elevation += [mtd[key].elevation]
 
