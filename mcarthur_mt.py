@@ -200,7 +200,7 @@ frequencies_2_use = []
 
 for freq in data_col_te.keys():
 
-    if len(data_col_te[freq]['real']) == 17:
+    if len(data_col_te[freq]['real']) >= 17:
         frequencies_2_use += [freq]
 
 
