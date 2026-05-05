@@ -1,4 +1,5 @@
-# code by Johnathon Kuttai - github.com/JKutt
+# code by Rylan Stutters - github.com/RylanDS7
+# adapted from Johnathon Kuttai - github.com/JKutt
 
 from simpeg import maps, utils, data, optimization, maps, regularization, inverse_problem, directives, inversion, data_misfit
 import discretize
@@ -11,7 +12,6 @@ import utm
 import mtpy as mt
 from mt_metadata import TF_XML
 from pathlib import Path
-import pickle
 # Python Version
 import sys
 print(sys.version)
@@ -137,71 +137,49 @@ mtc.close_collection()
 # collect the data into a nice list and convert the data and locations
 _impUnitEDI2SI = 4 * np.pi * 1e-4
 
+
+# map for recievers from frequencies
 rx_locs = []
-rx_locs_tipper = []
 elevation = []
-elevation_tipper = []
 
 for key in mtd.keys():
-    # print(mtd[key].has_tipper(), key)
     rx_locs += [utm.from_latlon(mtd[key].latitude, mtd[key].longitude)[:2]]
     elevation += [mtd[key].elevation]
 
-    if mtd[key].has_tipper():
-        rx_locs_tipper += [utm.from_latlon(mtd[key].latitude, mtd[key].longitude)[:2]]
-        elevation_tipper += [mtd[key].elevation]
 
 # since this is a 2D inversion rotate the coordinates of the location to inline
 rotated_points = rotate_points(rx_locs, rx_locs[-4], -40)
-rotated_points_tipper = rotate_points(rx_locs_tipper, rx_locs[-4], -40)
 
 rx_locs2d = np.vstack([rotated_points[:, 0], elevation]).T
-rx_locs2d_tipper = np.vstack([rotated_points_tipper[:, 0], elevation_tipper]).T
+
+rxData = {}
+unique_freqs = set()
+
+for i, key in enumerate(mtd.keys()):
+    rx = mtd[key]
+    freqs = rx.Z.frequency
+    unique_freqs.update(freqs.tolist())
+
+    freqData = {}
+    for ii, f in enumerate(freqs):
+        zrot = rotate_impedance_tensor(mtd[key].impedance[ii].values, 45.0)
+        freqData[f] = np.array([zrot[0, 1].real, zrot[0, 1].imag, zrot[1, 0].real, zrot[1, 0].imag]) * _impUnitEDI2SI
+
+    rxData[tuple(rx_locs2d[i])] = freqData
 
 mtd.compute_model_errors()
 
-# collect the data into something simpeg can use
-
-data_col_te = {}
-data_col_tm = {}
-
-for key in mtd.keys():
-
-    for ii, freq in enumerate(mtd[key].Z.frequency):
-        
-        data_col_te[freq] = {
-
-            'real': [],
-            'imag': [],
-
-        }
-        data_col_tm[freq] = {
-
-            'real': [],
-            'imag': [],
-
-        }
-
-for key in mtd.keys():
-
-    for ii, freq in enumerate(mtd[key].Z.frequency):
-        # print(f"{key} freq: {freq}")
-        zrot = rotate_impedance_tensor(mtd[key].impedance[ii].values, 45.0)
-        data_col_tm[freq]['real'] += [zrot[0, 1].real * _impUnitEDI2SI]
-        # real data yx imag
-        data_col_tm[freq]['imag'] += [zrot[0, 1].imag * _impUnitEDI2SI]
-        
-        data_col_te[freq]['real'] += [zrot[1, 0].real * _impUnitEDI2SI]
-        # real data xy imag
-        data_col_te[freq]['imag'] += [zrot[1, 0].imag * _impUnitEDI2SI]
-
 # now determine the frequencies that all stations share
-frequencies_2_use = []
+freqs_2_use = []
 
-for freq in data_col_te.keys():
-
-    if len(data_col_te[freq]['real']) >= 17:
-        frequencies_2_use += [freq]
+for freq in unique_freqs:
+    i = 0
+    for rx in rxData.keys():
+        if freq in rxData[rx].keys():
+            i += 1
+        if i >= 17:
+            freqs_2_use += [freq]
+            break
 
 
 # ---------------------------------------------------------------------------
@@ -227,28 +205,26 @@ active_cells = discretize.utils.mesh_utils.active_from_xyz(mesh, rx_locs2d)
 
 #
 
-rx_list_te = [
+src_list_te = []
+src_list_tm = []
 
-    nsem.receivers.PointNaturalSource(
-        rx_locs2d, orientation="xy", component="real"
-    ),
-    nsem.receivers.PointNaturalSource(
-        rx_locs2d, orientation="xy", component="imag"
-    ),
+for f in freqs_2_use:
+    rx_locs_f = np.array([
+        rx for rx in rxData.keys() if f in rxData[rx]
+    ])
 
-]
+    rx_list_te = [
+        nsem.receivers.Impedance(rx_locs_f, orientation="xy", component="real"),
+        nsem.receivers.Impedance(rx_locs_f, orientation="xy", component="imag"),
+    ]
 
-rx_list_tm = [
-    nsem.receivers.PointNaturalSource(
-        rx_locs2d, orientation="yx", component="real"
-    ),
-    nsem.receivers.PointNaturalSource(
-        rx_locs2d, orientation="yx", component="imag"
-    ),
-]
+    rx_list_tm = [
+        nsem.receivers.Impedance(rx_locs_f, orientation="yx", component="real"),
+        nsem.receivers.Impedance(rx_locs_f, orientation="yx", component="imag"),
+    ]
 
-src_list_te = [nsem.sources.Planewave(rx_list_te, frequency=f) for f in frequencies_2_use]
-src_list_tm = [nsem.sources.Planewave(rx_list_tm, frequency=f) for f in frequencies_2_use]
+    src_list_te.append(nsem.sources.Planewave(rx_list_te, frequency=f))
+    src_list_tm.append(nsem.sources.Planewave(rx_list_tm, frequency=f))
 
 # do the data
 
@@ -258,20 +234,25 @@ data_vec_tm = []
 data_vec_tx = []
 data_vec_ty = []
 
-for freq in frequencies_2_use:
-
-    data_vec_te += [data_col_te[freq]['real']]
-    data_vec_te += [data_col_te[freq]['imag']]
-    data_vec_tm += [data_col_tm[freq]['real']]
-    data_vec_tm += [data_col_tm[freq]['imag']]
+for freq in freqs_2_use:
+    for rx in rxData.keys():
+        if freq in rxData[rx].keys():
+            data_vec_te += [rxData[rx][freq][0]]
+            data_vec_te += [rxData[rx][freq][1]]
+            data_vec_tm += [rxData[rx][freq][2]]
+            data_vec_tm += [rxData[rx][freq][3]]
 
 data_vec_te = np.hstack(data_vec_te)
 data_vec_tm = np.hstack(data_vec_tm)
+
+breakpoint()
 
 # setup the survey
 survey_te = nsem.Survey(src_list_te)
 
 data_obj_te = data.Data(survey_te, data_vec_te)
+
+breakpoint()
 
 survey_tm = nsem.Survey(src_list_tm)
 
