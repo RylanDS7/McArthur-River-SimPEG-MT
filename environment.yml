@@ -15,6 +15,7 @@ dependencies:
 
   # Solvers
   - pymatsolver
+  - pydiso
   - mkl  # improves Pardiso performance
 
   # Utilities

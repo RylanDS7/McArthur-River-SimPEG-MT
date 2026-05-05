@@ -245,14 +245,10 @@ for freq in freqs_2_use:
 data_vec_te = np.hstack(data_vec_te)
 data_vec_tm = np.hstack(data_vec_tm)
 
-breakpoint()
-
 # setup the survey
 survey_te = nsem.Survey(src_list_te)
 
 data_obj_te = data.Data(survey_te, data_vec_te)
-
-breakpoint()
 
 survey_tm = nsem.Survey(src_list_tm)
 
@@ -408,8 +404,8 @@ fig, ax = plt.subplots(3, 6, figsize=(12, 8))
 ax = ax.flatten()
 for ii in range(rx_locs2d.shape[0]):
     # ax[ii].loglog(frequencies_2_use, -uniform_bg.reshape(34, len(frequencies_2_use), order='F')[ii, :])
-    ax[ii].loglog(frequencies_2_use, -data_obj_te.dobs.reshape(34, len(frequencies_2_use), order='F')[ii, :], 'r-o')
-    ax[ii].loglog(frequencies_2_use, -data_model.reshape(34, len(frequencies_2_use), order='F')[ii, :], 'g-o')
+    ax[ii].loglog(freqs_2_use, -data_obj_te.dobs.reshape(34, len(freqs_2_use), order='F')[ii, :], 'r-o')
+    ax[ii].loglog(freqs_2_use, -data_model.reshape(34, len(freqs_2_use), order='F')[ii, :], 'g-o')
     ax[ii].set_xlabel('frequency (Hz)')
     ax[ii].set_ylabel('Z (V/m)')
 
@@ -423,8 +419,8 @@ fig, ax = plt.subplots(3, 6, figsize=(12, 8))
 ax = ax.flatten()
 for ii in range(rx_locs2d.shape[0]):
     # ax[ii].loglog(frequencies_2_use, uniform_bg.reshape(34, len(frequencies_2_use), order='F')[ii, :])
-    ax[ii].loglog(frequencies_2_use, data_obj_tm.dobs.reshape(34, len(frequencies_2_use), order='F')[ii, :], 'r-o')
-    ax[ii].loglog(frequencies_2_use, data_model.reshape(34, len(frequencies_2_use), order='F')[ii, :], 'g-o')
+    ax[ii].loglog(freqs_2_use, data_obj_tm.dobs.reshape(34, len(freqs_2_use), order='F')[ii, :], 'r-o')
+    ax[ii].loglog(freqs_2_use, data_model.reshape(34, len(freqs_2_use), order='F')[ii, :], 'g-o')
     ax[ii].set_xlabel('frequency (Hz)')
     ax[ii].set_ylabel('Z (V/m)')
 fig.savefig(f'te-mode-datafit.png')
