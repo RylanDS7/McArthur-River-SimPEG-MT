@@ -120,7 +120,7 @@ for file_path in directory_path.iterdir():
     station_name = file_path.stem
     if station_name in station_names: # don't load duplicate data
         continue
-    if file_path.is_file():
+    if file_path.is_file() and station_name.startswith('3'):
         mt_object = mt.MT()
         mt_object.read(file_path)
         mt_object.survey_metadata.id = "grid"
@@ -148,9 +148,11 @@ for key in mtd.keys():
 
 
 # since this is a 2D inversion rotate the coordinates of the location to inline
-rotated_points = rotate_points(rx_locs, rx_locs[-4], -40)
+rotated_points = rotate_points(rx_locs, rx_locs[-4], -45)
 
 rx_locs2d = np.vstack([rotated_points[:, 0], elevation]).T
+
+breakpoint()
 
 rxData = {}
 unique_freqs = set()
