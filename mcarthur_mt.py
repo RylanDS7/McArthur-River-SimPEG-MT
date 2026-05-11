@@ -152,8 +152,6 @@ rotated_points = rotate_points(rx_locs, rx_locs[-4], -45)
 
 rx_locs2d = np.vstack([rotated_points[:, 0], elevation]).T
 
-breakpoint()
-
 rxData = {}
 unique_freqs = set()
 
@@ -260,10 +258,10 @@ data_vec_ty = []
 for freq in freqs_2_use:
     for rx in rxData.keys():
         if freq in rxData[rx].keys():
-            data_vec_te += [rxData[rx][freq][0]]
-            data_vec_te += [rxData[rx][freq][1]]
-            data_vec_tm += [rxData[rx][freq][2]]
-            data_vec_tm += [rxData[rx][freq][3]]
+            data_vec_tm += [rxData[rx][freq][0]]
+            data_vec_tm += [rxData[rx][freq][1]]
+            data_vec_te += [rxData[rx][freq][2]]
+            data_vec_te += [rxData[rx][freq][3]]
 
 data_vec_te = np.hstack(data_vec_te)
 data_vec_tm = np.hstack(data_vec_tm)
