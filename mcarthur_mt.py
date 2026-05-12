@@ -169,15 +169,16 @@ for i, key in enumerate(mtd.keys()):
 
 mtd.compute_model_errors()
 
-# now determine the frequencies that all stations share
+# now determine the frequencies that the stations share
 freqs_2_use = []
+num_rxs = 1 # minimum number of rxs that have data for freq to be used
 
 for freq in unique_freqs:
     i = 0
     for rx in rxData.keys():
         if freq in rxData[rx].keys():
             i += 1
-        if i >= 17:
+        if i == num_rxs:
             freqs_2_use += [freq]
             break
 
@@ -190,33 +191,12 @@ for freq in unique_freqs:
 
 print('[INFO] creating Tensor Mesh...')
 
-# ── Horizontal cells (W → E) ──────────────────────────────────────────
-hx = (
-    [(16000,1),(8000,1),(4000,1),(2000,1),(1000,1),(500,1),(250,1),(125,1),(75,1),(50,5)]  # left padding
-    + [(25, 240)]                                                                           # core (6000 m)
-    + [(50,5),(75,1),(125,1),(250,1),(500,1),(1000,1),(2000,1),(4000,1),(8000,1),(16000,1)] # right padding
-)
-
-# ── Vertical cells (bottom → top) ────────────────────────────────────
-hz = (
-    [(8000,1),(4000,1)]                                                  # deep padding
-    + [(2500,2),(1500,3),(800,5),(400,10),(200,10),(100,10),(50,10)]      # transition (deep → shallow)
-    + [(25, 80)]                                                          # fine zone (top 2000 m)
-)
-
-# ── Origin ────────────────────────────────────────────────────────────
-# x0_x: puts left edge ~32.5 km west of leftmost station
-# x0_z: puts mesh top at z=1100 m (69 m above your highest station at 1031 m)
-x0_x = rx_locs2d[:, 0].min() - 32500
-x0_z = 1100.0 - sum(n * s for s, n in hz)   # = -33900.0
-
-mesh = discretize.TensorMesh([hx, hz], x0=[x0_x, x0_z])
-
-assert rx_locs2d[:, 0].min() > mesh.nodes_x[0]
-assert rx_locs2d[:, 0].max() < mesh.nodes_x[-1]
-assert rx_locs2d[:, 1].min() > mesh.nodes_y[0]
-assert rx_locs2d[:, 1].max() < mesh.nodes_y[-1]
-print("All stations inside mesh")
+mesh = discretize.TensorMesh(
+[
+    [(16000,1),(8000,1),(4000,1), (2000,2), (1000,2),(500,2),(250,2),(175,2),(125,2),(100,5),(80,20),
+     (75,75),(80,20),(100,5),(125,2),(175,2),(250,2),(500,2),(1000,2), (2000,2), (4000,1), (8000,1), (16000, 1)], #[(min cell size,left padding cells, growth factor),(min cell size, amount of cells @ that size),(min cell size,right padding cells, growth factor)]
+    [(16000,1),(8000,1),(4000,1),(2000,1),(1000,1),(750,1),(500,1),(375,2),(225,3),(175,5),(125,5),(100,5),(90,10),(80,15),(75,12)]
+], x0=[rx_locs2d[:, 0].min() - 38500, -37900])
 
 active_cells = discretize.utils.mesh_utils.active_from_xyz(mesh, rx_locs2d)
 
@@ -252,15 +232,14 @@ for f in freqs_2_use:
 data_vec_te = []
 data_vec_tm = []
 
-data_vec_tx = []
-data_vec_ty = []
-
 for freq in freqs_2_use:
-    for rx in rxData.keys():
+    for rx in rxData.keys(): # real components
         if freq in rxData[rx].keys():
             data_vec_tm += [rxData[rx][freq][0]]
-            data_vec_tm += [rxData[rx][freq][1]]
             data_vec_te += [rxData[rx][freq][2]]
+    for rx in rxData.keys(): # imag components
+        if freq in rxData[rx].keys():
+            data_vec_tm += [rxData[rx][freq][1]]
             data_vec_te += [rxData[rx][freq][3]]
 
 data_vec_te = np.hstack(data_vec_te)
@@ -354,13 +333,11 @@ beta = directives.BetaSchedule(
 )
 betaest = directives.BetaEstimate_ByEig(beta0_ratio=beta0_ratio)
 target = directives.TargetMisfit()
-savedict = directives.SaveOutputEveryIteration()
 
 directiveList = [
     beta, 
     betaest, 
     target,
-    savedict,
 ]
 
 inv_tetm = inversion.BaseInversion(
@@ -417,33 +394,5 @@ ax.set_xlim([494500, 499500])
 ax.set_ylim([-1500, 800])
 fig.savefig(f'final_model.png')
 np.save(f'model_final.npy', opt_tetm.xc)
-        
-data_model = sim_te.dpred(minv_tetm)
-
-fig, ax = plt.subplots(3, 6, figsize=(12, 8))
-
-ax = ax.flatten()
-for ii in range(rx_locs2d.shape[0]):
-    # ax[ii].loglog(frequencies_2_use, -uniform_bg.reshape(34, len(frequencies_2_use), order='F')[ii, :])
-    ax[ii].loglog(freqs_2_use, -data_obj_te.dobs.reshape(34, len(freqs_2_use), order='F')[ii, :], 'r-o')
-    ax[ii].loglog(freqs_2_use, -data_model.reshape(34, len(freqs_2_use), order='F')[ii, :], 'g-o')
-    ax[ii].set_xlabel('frequency (Hz)')
-    ax[ii].set_ylabel('Z (V/m)')
-
-fig.savefig(f'tm-mode-datafit.png')
-
-# uniform_bg = sim_tm.dpred(m0)
-data_model = sim_tm.dpred(minv_tetm)
-
-fig, ax = plt.subplots(3, 6, figsize=(12, 8))
-
-ax = ax.flatten()
-for ii in range(rx_locs2d.shape[0]):
-    # ax[ii].loglog(frequencies_2_use, uniform_bg.reshape(34, len(frequencies_2_use), order='F')[ii, :])
-    ax[ii].loglog(freqs_2_use, data_obj_tm.dobs.reshape(34, len(freqs_2_use), order='F')[ii, :], 'r-o')
-    ax[ii].loglog(freqs_2_use, data_model.reshape(34, len(freqs_2_use), order='F')[ii, :], 'g-o')
-    ax[ii].set_xlabel('frequency (Hz)')
-    ax[ii].set_ylabel('Z (V/m)')
-fig.savefig(f'te-mode-datafit.png')
 
 print(f"inversion completed")
