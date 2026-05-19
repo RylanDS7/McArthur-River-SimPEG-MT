@@ -4,12 +4,14 @@
 from simpeg import maps, utils, data, optimization, maps, regularization, inverse_problem, directives, inversion, data_misfit
 import discretize
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib
 from pymatsolver import Pardiso
 from simpeg.electromagnetics import natural_source as nsem
 import matplotlib.pyplot as plt
 import utm
 import mtpy as mt
+import pandas as pd
+import seaborn as sns
 from mt_metadata import TF_XML
 from pathlib import Path
 # Python Version
@@ -181,6 +183,30 @@ for freq in unique_freqs:
         if i == num_rxs:
             freqs_2_use += [freq]
             break
+
+
+# visualize frequencies at each station
+plotData = {}
+
+for rx in rxData.keys():
+    dataCol = []
+    for freq in freqs_2_use:
+        if freq in rxData[rx].keys():
+            dataCol.append(1)
+        else:
+            dataCol.append(0)
+    plotData[rx[0]] = dataCol
+
+df = pd.DataFrame(plotData, index=freqs_2_use)
+df = df.sort_index(axis=0, ascending=True)
+df.loc['stations'] = station_names
+df = df.sort_index(axis=1, ascending=True)
+df.columns = df.loc['stations']
+df = df[:-1]
+
+sns.heatmap(df.astype(float), cmap=matplotlib.colors.ListedColormap(['lightgrey', 'green']), cbar=False, yticklabels=1)
+plt.title("Frequency data available for recievers")
+plt.show()   
 
 
 # ---------------------------------------------------------------------------
