@@ -421,4 +421,73 @@ ax.set_ylim([-1500, 800])
 fig.savefig(f'final_model.png')
 np.save(f'model_final.npy', opt_tetm.xc)
 
+data_model = sim_te.dpred(minv_tetm)
+
+freq_data_len = []
+
+for freq in freqs_2_use:
+    freq_count = 0
+
+    for rx in rxData.keys():
+        if freq in rxData[rx].keys():
+            freq_count += 1
+
+    freq_data_len.append(2 * freq_count)
+
+freq_data_len = freq_data_len * 2 # both polairzations
+
+split_indices = np.cumsum(freq_data_len)[:-1]
+simData = np.split(data_model, split_indices)
+
+
+n_freqs = len(freqs_2_use)
+
+rx_list = list(rxData.keys())
+n_rx = len(rx_list)
+
+
+fig, ax = plt.subplots(3, 6, figsize=(12, 8))
+ax = ax.flatten()
+
+rx_pos_lookup = {}
+for freq in freqs_2_use:
+    rx_order = [r for r in rxData if freq in rxData[r]]
+    rx_pos_lookup[freq] = {rx: pos for pos, rx in enumerate(rx_order)}
+
+for ii, rx in enumerate(rx_list):
+    freqs_rx, dobs_rx, dmodel_rx = [], [], []
+
+    for fi, freq in enumerate(freqs_2_use):
+        if freq not in rxData[rx]:
+            continue
+
+        rx_pos = rx_pos_lookup[freq][rx]
+        n_rx_at_freq = len(rx_pos_lookup[freq])
+
+        # real and imag are in consecutive blocks within this freq slice
+        real_pred = simData[fi][rx_pos]
+        imag_pred = simData[fi][rx_pos + n_rx_at_freq]
+
+        dmodel_rx.append(real_pred + 1j * imag_pred)
+        dobs_rx.append(rxData[rx][freq][2] + 1j * rxData[rx][freq][3])  # TE
+        freqs_rx.append(freq)
+
+    freqs_rx  = np.array(freqs_rx)
+    dobs_rx   = np.array(dobs_rx)
+    dmodel_rx = np.array(dmodel_rx)
+
+    ax[ii].loglog(freqs_rx, np.abs(dobs_rx),   'r-o', label='Observed')
+    ax[ii].loglog(freqs_rx, np.abs(dmodel_rx), 'g-o', label='Predicted')
+    ax[ii].set_title(f'Rx {ii}')
+    ax[ii].set_xlabel('Frequency (Hz)')
+    ax[ii].set_ylabel('|Z| (V/m)')
+
+ax[0].legend(fontsize=8)
+
+for jj in range(n_rx, len(ax)):
+    ax[jj].set_visible(False)
+
+plt.tight_layout()
+plt.show()
+
 print(f"inversion completed")
